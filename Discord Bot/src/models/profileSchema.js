@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 
 const profileSchema = new mongoose.Schema({
+    channelId: {type: String, unique: true, default: 0},
     serverId: { type: String, require: true, unique: true}, 
     maxCount: {type: Number, default: 500},
     wordCount: {type: Number, default: 0},
