@@ -1,6 +1,24 @@
 const { getExamples, getDefinitionsFromWordsAPI } = require('./definition.js') 
+const {EmbedBuilder} = require('discord.js')
+const fs = require('fs');
+const { text } = require('stream/consumers');
 
-function isCheckingWord (string) {
+const maikaID = '712551540597981224'
+
+function isCheckingWord (string, lastMessageTimestamps, typingThreshold, message) {
+
+    if (lastMessageTimestamps.has(message.author.id)) {
+        const lastTimestamp = lastMessageTimestamps.get(message.author.id)
+        const currentTime = Date.now()
+        const timeDiff = currentTime - lastTimestamp
+
+        if (timeDiff < typingThreshold) {
+            message.channel.send('Bạn đang gõ quá nhanh. Vui lòng chờ một chút trước khi gửi tin nhắn tiếp theo')
+            return false
+        }
+    }
+
+    lastMessageTimestamps.set(message.author.id, Date.now())
     return string.split(" ").length == 1 && /^[a-zA-Z\s-]+$/.test(string);
 }
 
@@ -33,16 +51,17 @@ async function reset(profileData) {
     await profileData.save()
 }
 
-function showHelpMessage (message) {
+function showHelpMessage (message, client) {
     const helpMessage = new EmbedBuilder()
         .setColor(0x0099FF)
         .setAuthor({ name: 'Command List', iconURL: message.author.displayAvatarURL(), url: 'https://discord.js.org' })
-        .setDescription(`Danh sách lệnh của **${client.user.username}** \nCần sự giúp đỡ nhiều hơn? Tag **Maika** `)
+        .setDescription(`Danh sách lệnh của **${client.user.username}** \nCần sự giúp đỡ nhiều hơn? Tag <@${maikaID}> `)
         .addFields(
-            { name: 'Bắt đầu trò chơi', value: '`gnoichu`'},
-            { name: 'Định nghĩa', value: '`ggetdef <từ cần định nghĩa>`' },
+            { name: 'Bắt đầu trò chơi', value: '`gwordchain <kênh chat bạn muốn bắt đầu>`'},
+            { name: 'Định nghĩa', value: '`gdef <từ cần định nghĩa>`' },
             { name: 'Làm mới trò chơi', value: '`greset`'},
-            { name: 'Cài đặt số lượng từ tối đa', value: '`setmaxword <số lượng từ tối đa>`'},
+            { name: 'Cài đặt số lượng từ tối đa', value: '`gmaxword <số lượng từ tối đa>`'},
+            { name: 'Yêu cầu thêm từ mới', value: '`grequest <yêu cầu của bạn>`'},
         )
     message.channel.send({embeds: [helpMessage]})
 }
@@ -69,7 +88,7 @@ async function showDefinitionMessage (message, word) {
             )
         message.channel.send({embeds: [defintionMessage]})
     } else {
-        message.channel.send('Xin lỗi từ vựng này không có trong từ điển tôi tìm được trên mạng, nếu bạn chắc chắn có từ này, xin hãy liên hệ với Maika')
+        message.channel.send('Xin lỗi từ vựng này không có trong từ điển tôi tìm được trên mạng.\nNếu từ này được check đúng từ bot, đó là từ được thêm vô riêng từ Maika')
     }
 }
 
@@ -88,16 +107,25 @@ function getExamplesList(examples) {
     return result
 }
 
+function addTextToFile(text, filePath) {
+    fs.appendFile(filePath, text + "\n", (err) => {
+        if (err) {
+            console.log('Error appending text to file:', err)
+        } else {
+            console.log('Text added to file successfully')
+        }
+    })
+}
 
-
-const playWordChain = async function(userInputList, dictionary, message, profileData) {
+const playWordChain = async function(client, userInputList, dictionary, wordsNotCheck, message, profileData, lastMessageTimestamps, typingThreshold) {
     const word = message.content.toLowerCase().trim()
     let channelMessage = ""
+
     if (userInputList[0] === 'ghelp') {
-        showHelpMessage(message)
+        showHelpMessage(message, client)
     } else if (word === "greset") {
         reset(profileData)
-    } else if (userInputList[0] === "gsetmaxword") {
+    } else if (userInputList[0] === "gmaxword") {
         if (!isNaN(userInputList[1])) {
             profileData.maxCount = userInputList[1]
             await profileData.save()
@@ -105,9 +133,17 @@ const playWordChain = async function(userInputList, dictionary, message, profile
         } else {
             channelMessage = 'Xin hãy nhập đúng lệnh `gsetmaxword <số lượng từ tối đa>`'
         }
-    } else if (userInputList[0] === 'ggetdef') {
+    } else if (userInputList[0] === 'gdef') {
         showDefinitionMessage(message, userInputList[1])
-    }else if (isCheckingWord(word)) {
+    } else if (userInputList[0] === 'grequest') {
+        const textToAdd = message.content.substring('grequest'.length).trim()
+        if (textToAdd.length > 0) {
+            addTextToFile(textToAdd, 'src/text/request.txt')
+            channelMessage = `<@${maikaID}> sẽ kiểm tra yêu cầu của bạn và báo bạn sau nha`
+        } else {
+            channelMessage = `Hãy nhập đúng lệnh \`grequest <yêu cầu của bạn>\``
+        }
+    } else if (message.channelId === profileData.channelId && !wordsNotCheck.has(word) && isCheckingWord(word, lastMessageTimestamps, typingThreshold, message)) {
         let currentPlayer = message.author.username
         console.log("Checking used words", !profileData.usedWords.has(word))
         if (!isPreviousPlayer(currentPlayer, profileData) && dictionary.has(word) && !profileData.usedWords.has(word) && isCorrectStartingLetter(word, profileData)) {
@@ -124,16 +160,25 @@ const playWordChain = async function(userInputList, dictionary, message, profile
                 channelMessage = 'Đã đặt số lượng từ tối đa, trò chơi sẽ được làm mới'
             }
         } else {
-            message.react('❌')
-            // if the word is repeated 
             if (isPreviousPlayer(currentPlayer, profileData)) {
                 channelMessage = 'Bình tĩnh bạn ơi. Bạn đã nối từ trước đó, hãy để những bạn khác nối nữa nha'
+                 message.react('❌')
             } else if (profileData.usedWords.has(word)) {
                 channelMessage = `Chữ \`${message.content}\` đã được nối trước đó. Xin hãy nối lại từ khác`
+                 message.react('❌')
             } else if (!isCorrectStartingLetter(word, profileData)) {
-                channelMessage = `Từ của bạn phải bắt đầu bằng ${previousWord[previousWord.length - 1]}`
+                channelMessage = `Từ của bạn phải bắt đầu bằng chữ cái ${profileData.previousWord[profileData.previousWord.length - 1]}`
+                 message.react('❌')
             } else {
-                channelMessage = `Từ \`${message.content}\` không có trong từ điển`                    
+                const data = await getDefinitionsFromWordsAPI(word)
+
+                if (data.hasOwnProperty('definitions')) {
+                    message.react('✅')
+                    dictionary.add(word)
+                    addTextToFile(word, 'src/text/dictionary.txt')
+                } else {
+                    channelMessage = `Từ \`${message.content}\` không có trong từ điển.\nNếu bạn chắc chắn từ đó có trong từ điển, xin hãy dùng lệnh \`grequest <yêu cầu>\`. Vd: \`grequest add ${message.content}\`\Nếu bạn không muốn bot check từ đó nữa, bạn có thể nhập \`grequest remove ${message.content}`
+                }              
             }
         }
     }

@@ -1,8 +1,8 @@
 const mongoose = require('mongoose')
 
 const profileSchema = new mongoose.Schema({
-    channelId: {type: String, unique: true, default: 0},
     serverId: { type: String, require: true, unique: true}, 
+    channelId: {type: String, default: 0},
     maxCount: {type: Number, default: 500},
     wordCount: {type: Number, default: 0},
     previousWord: {type: String, default: ""},
@@ -19,6 +19,6 @@ const profileSchema = new mongoose.Schema({
     }
 })
 
-const model = mongoose.model("noichuDB", profileSchema)
+const model = mongoose.model("noichudb", profileSchema)
 
 module.exports = model
