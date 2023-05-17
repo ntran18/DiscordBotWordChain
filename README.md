@@ -10,4 +10,5 @@ The word chain game, also known as the word association game or the word link ga
 1. Help - get a list of commands that are available for this bot
 2. Get definition of a word - provide an embed message with definitions and example of a word
 3. Reset game
-4. Request for adding words to dictionary or words that will not be checked
+4. Set max words - set maximum amount of words that will be playing for a game, after reaching the maximum amount, the game will be reset
+5. Request for adding words to dictionary or words that will not be checked
