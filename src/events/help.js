@@ -10,7 +10,7 @@ const sendHelpMessage = (message, client) => {
             url: "https://discord.js.org",
         })
         .setDescription(
-            `Danh sách lệnh của **${client.user.username}** \nCần sự giúp đỡ nhiều hơn? Tag <@${maikaID}> `
+            `Danh sách lệnh của **${client.user.username}** \nCần sự giúp đỡ nhiều hơn? Tag <@${maikaID}> `,
         )
         .addFields(
             {
@@ -23,7 +23,7 @@ const sendHelpMessage = (message, client) => {
                 name: "Cài đặt số lượng từ tối đa",
                 value: "`gmaxword <số lượng từ tối đa>`",
             },
-            { name: "Yêu cầu", value: "`grequest <yêu cầu của bạn>`" }
+            { name: "Yêu cầu", value: "`grequest <yêu cầu của bạn>`" },
         );
     message.channel.send({ embeds: [helpMessage] });
 };
