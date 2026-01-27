@@ -1,6 +1,16 @@
-const { addTextToFile } = require("../wordchain.js");
+const fs = require("fs");
 
-const request = (message, messageDisplay) => {
+function addTextToFile(text, filePath) {
+    fs.appendFile(filePath, text + "\n", (err) => {
+        if (err) {
+            console.log("Error appending text to file:", err);
+        } else {
+            console.log("Text added to file successfully");
+        }
+    });
+}
+
+const request = (message, messageDisplay, maikaID) => {
     const textToAdd = message.content.substring("grequest".length).trim();
 
     if (textToAdd.length > 0) {

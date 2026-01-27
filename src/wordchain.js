@@ -9,7 +9,30 @@ const { request } = require("./events/request.js");
 
 const { EmbedBuilder } = require("discord.js");
 const fs = require("fs");
+const maikaID = "712551540597981224";
 
+class WordChainGame {
+    constructor() {
+        this.messageDisplay = {
+            previousPlayer: [
+                "Từ từ coi, sao nối quài dọ",
+                "Whoa whoa calm down, việc đâu còn có đó, đợi một xíu đi nà",
+            ],
+            tooFast: [
+                "Bạn đang gõ quá nhanh. Vui lòng chờ một chút trước khi gửi tin nhắn tiếp theo",
+            ],
+            reachMaxWords: [
+                "Đã đạt số lượng từ tối đa, trò chơi sẽ được làm mới",
+            ],
+            existedWord: [
+                "Chữ message đã được nối trước đó. Xin hãy nối lại từ khác",
+            ],
+            notAnEnglishWord: ["Từ message không có trong từ điển của bot."],
+            incorrectPrefix: ["Yêu lại từ đầu nò. Từ đầu phải là letter chứ."],
+            incorrectCommand: "Hãy nhập đúng lệnh command",
+        };
+    }
+}
 // Bot messsage
 const messageDisplay = {
     previousPlayer: [
@@ -130,7 +153,7 @@ const playWordChain = async function (
     } else if (userInputList[0] === "gdef") {
         showDefinitionMessage(message, userInputList[1]);
     } else if (userInputList[0] === "grequest") {
-        channelMessage = request(message, messageDisplay);
+        channelMessage = request(message, messageDisplay, maikaID);
     } else if (
         message.channelId === profileData.channelId &&
         !wordsNotCheck.has(word) &&

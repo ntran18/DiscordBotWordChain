@@ -1,48 +1,30 @@
-require("dotenv").config();
+require("dotenv").config({ path: "../.env" });
 
 const fs = require("fs");
-// const filePath = "src/dictionary.txt"
+const { Client, IntentsBitField, REST, Routes, Events } = require("discord.js");
+const mongoose = require("mongoose");
+
+const profileModel = require("./models/profileSchema.js");
+const GuildSettings = require("./models/guildSettings.js");
+const { playWordChain } = require("./wordchain.js");
+
+// ===================== LOAD DICTIONARY =====================
 const dictionary = new Set();
 const wordsNotCheck = new Set();
 
-const { playWordChain } = require("./wordchain.js");
-
-// Map to store the last message timestamps for each user
-const lastMessageTimestamps = new Map();
-
-// Threshold time in milliseconds
-const typingThreshold = 2000;
-
-// Import Client and IntentsBitField classes from Discord.js
-// Client is the bot
-const { Client, IntentsBitField } = require("discord.js");
-
-// Variables for database
-const mongoose = require("mongoose");
-const profileModel = require("./models/profileSchema.js");
-
-let gameStart = false;
-
 function readFileToSet(filePath, storage) {
     const readStream = fs.createReadStream(filePath, { encoding: "utf8" });
-
     readStream.on("data", (data) => {
-        const lines = data.split("\n");
-        lines.forEach((line) => {
-            storage.add(line);
-        });
+        data.split("\n").forEach((line) => storage.add(line.trim()));
     });
 }
 
-// ================================= READ TEXT FILE AND COLLECT WORDS =================================
-readFileToSet("src/text/dictionary.txt", dictionary);
-readFileToSet("src/text/wordsNotCheck.txt", wordsNotCheck);
+readFileToSet("../src/text/dictionary.txt", dictionary);
+readFileToSet("../src/text/wordsNotCheck.txt", wordsNotCheck);
 
-// ================================= BOT =================================
+// ===================== DISCORD CLIENT =====================
 const client = new Client({
-    // Intents is a set of permissions that your bot can use to get access to a set of events
     intents: [
-        // Guilds is a server
         IntentsBitField.Flags.Guilds,
         IntentsBitField.Flags.GuildMembers,
         IntentsBitField.Flags.GuildMessages,
@@ -50,113 +32,245 @@ const client = new Client({
     ],
 });
 
-// ================================= BOT READY =================================
-client.on("ready", (c) => {
-    // user.tag shows username and tag, user.username only shows bot username
-    console.log(`${c.user.tag} is online.`);
+// ===== Slash commands definition =====
+const commands = [
+    {
+        name: "addrole",
+        description: "Add auto-role for a bot/feature",
+        options: [
+            {
+                name: "role",
+                type: 8,
+                description: "Role to give",
+                required: true,
+            },
+            {
+                name: "botname",
+                type: 3,
+                description: "Bot name",
+                required: true,
+            },
+        ],
+    },
+    {
+        name: "removerole",
+        description: "Remove auto-role for a bot/feature",
+        options: [
+            {
+                name: "role",
+                type: 8,
+                description: "Role to remove",
+                required: true,
+            },
+            {
+                name: "botname",
+                type: 3,
+                description: "Bot name",
+                required: true,
+            },
+        ],
+    },
+];
+
+// ===== Helper: register commands for a guild =====
+async function registerCommandsForGuild(guildId) {
+    const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+    try {
+        await rest.put(
+            Routes.applicationGuildCommands(client.user.id, guildId),
+            { body: commands },
+        );
+        console.log(`✅ Registered slash commands for guild: ${guildId}`);
+    } catch (err) {
+        console.error(
+            `❌ Failed to register commands for guild ${guildId}`,
+            err,
+        );
+    }
+}
+
+// ===================== PER-SERVER TYPING MAP =====================
+const lastMessageTimestamps = new Map();
+const typingThreshold = 2000;
+
+// ===================== BOT READY =====================
+client.on(Events.ClientReady, () => {
+    console.log(`✅ ${client.user.tag} is online`);
+    client.guilds.cache.forEach((guild) => registerCommandsForGuild(guild.id));
 });
 
-// ================================= BOT SEE MESSAGES=================================
-let profileData;
-client.on("messageCreate", async (message) => {
-    if (!message.author.bot) {
-        if (
-            !gameStart ||
-            (gameStart && message.channelId === profileData.channelId)
-        ) {
-            // Get server db information and pass to command
+// ===== Auto-register for new guilds =====
+client.on(Events.GuildCreate, async (guild) => {
+    console.log(`Joined new guild: ${guild.name}`);
+    await registerCommandsForGuild(guild.id);
+});
 
-            let id;
-            try {
-                profileData = await profileModel.findOne({
-                    serverId: message.guildId,
-                });
-                console.log("Server id by message", message.guildId);
-                if (!profileData) {
-                    profileData = await profileModel.create({
-                        serverId: message.guildId,
-                        previousWord: "",
-                        previousPlayer: "",
-                        maxCount: 500,
-                        wordCount: 0,
-                        usedWords: new Set(),
-                    });
-                }
-                id = profileData._id;
-                console.log(profileData, id);
-                console.log("Server id", profileData.serverId);
-            } catch (error) {
-                console.log(error);
-            }
+// ===================== MESSAGE HANDLER =====================
+client.on(Events.MessageCreate, async (message) => {
+    try {
+        if (message.author.bot || !message.guild) return;
 
-            // Get start channel
-            const word = message.content.toLowerCase().trim();
+        const guildId = message.guild.id;
+        const content = message.content.toLowerCase().trim();
+        const userInputList = content.split(/\s+/);
 
-            const userInputList = word.split(" ");
+        // ---------- Load or create server profile ----------
+        let profileData = await profileModel.findOne({ serverId: guildId });
 
-            let channelMessage = "";
+        if (!profileData) {
+            profileData = await profileModel.create({ serverId: guildId });
+        }
 
-            console.log(userInputList);
-            if (userInputList[0] === "gwordchain") {
-                console.log("User wants to start game");
-                gameStart = true;
-                if (userInputList.length > 1) {
-                    const userInputChannelID = userInputList[1].match(/\d+/)[0];
-                    if (
-                        !isNaN(userInputChannelID) &&
-                        userInputChannelID.length >= 18
-                    ) {
-                        message.channel.send(
-                            `Bây giờ bạn có thể chơi nối chữ tại kênh chat <#${userInputChannelID}>`
-                        );
-                        profileData.channelId = userInputChannelID;
-                        await profileData.save();
-                    } else {
-                        channelMessage =
-                            "Xin hãy nhập đúng lệnh `gwordchain <id của kênh chat>, bạn có thể đã nhập một channel ID không hợp lệ`";
-                    }
-                } else {
-                    channelMessage =
-                        "Xin hãy nhập đúng lệnh `gwordchain <id của kênh chat>`";
-                }
-            }
+        // ---------- Setup typing map for this server ----------
+        if (!lastMessageTimestamps.has(guildId)) {
+            lastMessageTimestamps.set(guildId, new Map());
+        }
 
-            // Play word chain if the user is typing in the correct channel
-            if (!message.author.bot) {
-                channelMessage = await playWordChain(
-                    client,
-                    userInputList,
-                    dictionary,
-                    wordsNotCheck,
-                    message,
-                    profileData,
-                    lastMessageTimestamps,
-                    typingThreshold
+        const guildTimestamps = lastMessageTimestamps.get(guildId);
+
+        // ---------- START GAME COMMAND ----------
+        if (userInputList[0] === "gwordchain") {
+            if (userInputList.length < 2) {
+                return message.channel.send(
+                    "❌ Dùng: `gwordchain <channel_id>`",
                 );
             }
 
-            // Show channelMessage if not empty
-            if (channelMessage.length > 0) {
-                message.channel.send(channelMessage);
+            const channelId = userInputList[1].match(/\d+/)?.[0];
+
+            if (!channelId) {
+                return message.channel.send("❌ Channel ID không hợp lệ");
+            }
+
+            profileData.gameStart = true;
+            profileData.channelId = channelId;
+            await profileData.save();
+
+            return message.channel.send(
+                `✅ Game WordChain bắt đầu tại <#${channelId}>`,
+            );
+        }
+
+        // ---------- Game not started ----------
+        if (!profileData.gameStart) return;
+
+        // ---------- Wrong channel ----------
+        if (message.channel.id !== profileData.channelId) return;
+
+        // ---------- Play WordChain ----------
+        const channelMessage = await playWordChain(
+            client,
+            userInputList,
+            dictionary,
+            wordsNotCheck,
+            message,
+            profileData,
+            guildTimestamps,
+            typingThreshold,
+        );
+
+        if (channelMessage && channelMessage.length > 0) {
+            message.channel.send(channelMessage);
+        }
+    } catch (err) {
+        console.error("❌ Error in messageCreate:", err);
+    }
+});
+
+// ===== Interaction handler (WordSeek / other bots) =====
+client.on(Events.InteractionCreate, async (interaction) => {
+    console.log("Slash command received:", interaction.commandName);
+    if (!interaction.isChatInputCommand()) return;
+
+    const guildId = interaction.guildId;
+    const role = interaction.options.getRole("role");
+    const botName = interaction.options.getString("botname");
+
+    if (interaction.commandName === "addrole") {
+        await GuildSettings.updateOne(
+            { guildId },
+            { $push: { autoRoles: { botName, roleId: role.id } } },
+            { upsert: true },
+        );
+        await interaction.reply({
+            content: `✅ Auto-role for ${botName} added: ${role.name}`,
+            ephemeral: true,
+        });
+    }
+
+    if (interaction.commandName === "removerole") {
+        await GuildSettings.updateOne(
+            { guildId },
+            { $pull: { autoRoles: { botName, roleId: role.id } } },
+        );
+        await interaction.reply({
+            content: `❌ Auto-role for ${botName} removed: ${role.name}`,
+            ephemeral: true,
+        });
+    }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+    // -------------- Auto-role for other bots/features --------------
+    if (message.author.bot && message.guild) {
+        const guildId = message.guild.id;
+        const botId = message.author.username;
+
+        const userTaggedFromEmbed = message.embeds
+            .map((embed) => embed.description)
+            .join("\n")
+            .match(/<@!?(\d+)>/);
+
+        const userTaggedFromMessage = message.mentions.users.first()?.id;
+        let userTaggedId = null;
+        if (userTaggedFromEmbed) {
+            userTaggedId = userTaggedFromEmbed[1];
+        } else if (userTaggedFromMessage) {
+            userTaggedId = userTaggedFromMessage;
+        }
+
+        if (!userTaggedId) {
+            console.log("No user tagged in the message.");
+            return;
+        }
+        console.log("User tagged ID:", userTaggedId);
+        const settings = await GuildSettings.findOne({ guildId });
+        if (!settings?.autoRoles?.length) return;
+
+        for (const { botName, roleId } of settings.autoRoles) {
+            if (botId === botName) {
+                const member = await message.guild.members.fetch(userTaggedId);
+                if (!member.roles.cache.has(roleId)) {
+                    try {
+                        await member.roles.add(roleId);
+                        console.log(
+                            `✅ Auto-role assigned: ${member.user.tag} -> Role ID: ${roleId}`,
+                        );
+                    } catch (err) {
+                        console.error("Failed to assign role:", err);
+                        if (err.code === 50001) {
+                            // Missing Access error
+                            message.channel.send(
+                                `❌ I cannot assign the role <@&${roleId}> to ${member.user.tag}. I might be missing permissions or the role is above my highest role.`,
+                            );
+                        } else {
+                            message.channel.send(
+                                `❌ Failed to assign role <@&${roleId}> to ${member.user.tag}: ${err.message}`,
+                            );
+                        }
+                    }
+                }
             }
         }
     }
 });
 
-// ================================= DATABASE =================================
+// ===================== DATABASE =====================
 mongoose
-    .connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    })
-    .then(() => {
-        console.log("Connected to the database!");
-    })
-    .catch((err) => {
-        console.log(err);
-    });
+    .connect(process.env.MONGO_URI)
+    .then(() => console.log("✅ Connected to MongoDB"))
+    .catch((err) => console.error("❌ MongoDB error:", err));
 
-// ================================= BOT LOGIN =================================
+// ===================== LOGIN =====================
+console.log("Logging in with token:", process.env.TOKEN?.slice(0, 5) + "...");
 client.login(process.env.TOKEN);
-
-// In order to make bot online, in terminal, run nodemon
