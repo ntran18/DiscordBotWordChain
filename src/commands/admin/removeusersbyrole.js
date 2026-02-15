@@ -40,20 +40,16 @@ module.exports = {
                 interaction.options.getString("reason") ||
                 `Trục xuất bởi lệnh /removeusersbyrole (Role: ${role.name})`;
 
-            // Bước 1: Trả lời tạm thời để tránh lỗi timeout (3s) của Discord
             await interaction.deferReply({ ephemeral: true });
 
             console.log(
                 `Đang quét API Discord cho role: ${role.name} tại ${interaction.guild.name}`,
             );
 
-            // Bước 2: Bỏ qua Cache, buộc bot tải danh sách thành viên mới nhất từ API
-            // Sử dụng force: true giúp khắc phục lỗi bị "stuck" khi chạy lại lệnh
             const allMembers = await interaction.guild.members.fetch({
                 force: true,
             });
 
-            // Lọc những thành viên thực sự có role này
             const membersWithRole = allMembers.filter((m) =>
                 m.roles.cache.has(role.id),
             );
@@ -64,7 +60,6 @@ module.exports = {
                 });
             }
 
-            // Bước 3: Kiểm tra những ai có thể kick được (Hierarchy check)
             const kickableMembers = membersWithRole.filter((m) => m.kickable);
             const total = membersWithRole.size;
             const kickable = kickableMembers.size;
@@ -80,7 +75,6 @@ module.exports = {
                     .setStyle(ButtonStyle.Secondary),
             );
 
-            // Change the content message to include list of users to be removed and a confirmation prompt
             const response = await interaction.editReply({
                 content: `⚠️ **Yêu cầu xác nhận**\n\nTìm thấy **${total}** thành viên có role **${role.name}**.\nTrong đó có **${kickable}** người có thể trục xuất (kick).\n\nDanh sách người dùng sẽ bị trục xuất:\n${kickableMembers.map((m) => `- ${m.user.tag}`).join("\n")}\n\n**Lý do:** ${reason}\n\nBạn có chắc chắn muốn tiếp tục không?`,
                 components: [row],
@@ -111,7 +105,6 @@ module.exports = {
                 let success = 0;
                 let failed = 0;
 
-                // Xử lý tuần tự để tránh bị Rate Limit bởi Discord
                 for (const member of kickableMembers.values()) {
                     try {
                         await member.kick(reason);
