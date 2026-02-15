@@ -1,42 +1,46 @@
-const {
-    getDefinitionsAndExamplesFromLinguaRobot,
-} = require("../api/definition.js");
-
 const { EmbedBuilder } = require("discord.js");
 
-function defintionsAndExamples(lexemes, definitionMessage) {
+const utilMessages = {
+    helpTitle: "Danh sách lệnh",
+    helpDescription: "Các lệnh khả dụng:",
+    requestReceived:
+        "Đã ghi nhận yêu cầu của bạn. Chủ bot sẽ xem xét sớm nhất.",
+    defNotFound: "Từ đó không có trong từ điển của bot.",
+};
+
+function addField(name, value) {
+    return { name, value };
+}
+
+function definitionsAndExamples(lexemes, definitionMessage) {
     let examples = "";
     let numLexeme = 0;
-
     let numEx = 0;
 
     lexemes.forEach((lexeme) => {
         numLexeme++;
-
         const partOfSpeech = lexeme.partOfSpeech;
         let definitions = `*${partOfSpeech}*\n`;
-
         let numDef = 1;
         let hasDomains = false;
 
         lexeme.senses.forEach((sense) => {
-            console.log(sense);
             if (
-                sense.hasOwnProperty("context") &&
-                sense.context.hasOwnProperty("domains")
+                sense?.context?.domains &&
+                Array.isArray(sense.context.domains)
             ) {
                 hasDomains = true;
                 let domains = "[";
                 sense.context.domains.forEach(
-                    (domain) => (domains += `*${domain}*, `)
+                    (domain) => (domains += `*${domain}*, `),
                 );
                 definitions += `${numDef}. ${domains.slice(
                     0,
-                    domains.length - 2
+                    domains.length - 2,
                 )}] `;
             }
             if (
-                sense.hasOwnProperty("definition") &&
+                sense.definition &&
                 definitions.length + sense.definition.length + 2 <= 1024 &&
                 numDef <= 5
             ) {
@@ -47,7 +51,7 @@ function defintionsAndExamples(lexemes, definitionMessage) {
                 }
                 numDef++;
             }
-            if (sense.hasOwnProperty("usageExamples")) {
+            if (sense?.usageExamples) {
                 sense.usageExamples.forEach((ex) => {
                     numEx++;
                     const example = `${numEx}. ${ex}\n`;
@@ -59,12 +63,10 @@ function defintionsAndExamples(lexemes, definitionMessage) {
         });
 
         if (numLexeme === 1) {
-            definitionMessage.addFields(addField(`Định nghĩa:`, definitions));
+            definitionMessage.addFields(addField("Định nghĩa:", definitions));
         } else {
             definitionMessage.addFields(addField("\u200b", definitions));
         }
-
-        definitions = "";
     });
 
     if (examples === "") {
@@ -73,24 +75,19 @@ function defintionsAndExamples(lexemes, definitionMessage) {
     definitionMessage.addFields(addField("Ví dụ", examples));
 }
 
-function addField(name, value) {
-    return { name: name, value: value };
+/**
+ * Build definition embed.
+ * @param {string} word
+ * @param {any} data
+ * @returns {EmbedBuilder}
+ */
+function buildDefinitionEmbed(word, data) {
+    const lexemes = data.entries[0].lexemes;
+    const definitionMessage = new EmbedBuilder()
+        .setColor(0x0099ff)
+        .setTitle(word);
+    definitionsAndExamples(lexemes, definitionMessage);
+    return definitionMessage;
 }
 
-async function showDefinitionMessage(message, word) {
-    const data = await getDefinitionsAndExamplesFromLinguaRobot(word);
-    if (data.entries.length > 0) {
-        const lexemes = data.entries[0].lexemes;
-
-        const definitionMessage = new EmbedBuilder()
-            .setColor(0x0099ff)
-            .setTitle(word);
-
-        defintionsAndExamples(lexemes, definitionMessage);
-        message.channel.send({ embeds: [definitionMessage] });
-    } else {
-        message.channel.send("Từ đó không có trong từ điển của bot");
-    }
-}
-
-exports.showDefinitionMessage = showDefinitionMessage;
+module.exports = { utilMessages, buildDefinitionEmbed };

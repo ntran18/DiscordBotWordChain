@@ -1,23 +1,36 @@
 require("dotenv").config();
 const fetch = require("node-fetch");
 
-// Get Definitions From Words API
+/**
+ * Fetch definitions from Words API.
+ * @param {string} word
+ * @returns {Promise<any>}
+ */
 const getDefinitionsFromWordsAPI = async function (word) {
     return await fetchAPI(
         `https://wordsapiv1.p.rapidapi.com/words/${word}/definitions`,
-        "wordsapiv1.p.rapidapi.com"
+        "wordsapiv1.p.rapidapi.com",
     );
 };
 
-// Get Definitions and Examples From Lingua Robot
+/**
+ * Fetch definitions and examples from Lingua Robot.
+ * @param {string} word
+ * @returns {Promise<any>}
+ */
 const getDefinitionsAndExamplesFromLinguaRobot = async function (word) {
     return await fetchAPI(
         `https://lingua-robot.p.rapidapi.com/language/v1/entries/en/${word}`,
-        "lingua-robot.p.rapidapi.com"
+        "lingua-robot.p.rapidapi.com",
     );
 };
 
-//  Helper function to fetch from API with different urls
+/**
+ * Helper fetch with RapidAPI headers.
+ * @param {string} url
+ * @param {string} rapidapiHost
+ * @returns {Promise<any>}
+ */
 const fetchAPI = async function (url, rapidapiHost) {
     const options = {
         method: "GET",
@@ -27,16 +40,11 @@ const fetchAPI = async function (url, rapidapiHost) {
         },
     };
 
-    try {
-        const response = await fetch(url, options);
-        const result = await response.json();
-        console.log(result);
-        return result;
-    } catch (error) {
-        console.log(error);
-    }
+    const response = await fetch(url, options);
+    return await response.json();
 };
 
-exports.getDefinitionsFromWordsAPI = getDefinitionsFromWordsAPI;
-exports.getDefinitionsAndExamplesFromLinguaRobot =
-    getDefinitionsAndExamplesFromLinguaRobot;
+module.exports = {
+    getDefinitionsFromWordsAPI,
+    getDefinitionsAndExamplesFromLinguaRobot,
+};
