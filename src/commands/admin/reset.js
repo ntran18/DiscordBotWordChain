@@ -3,13 +3,7 @@ const Profile = require("../../models/profileSchema");
 const { gameMessages } = require("../../services/ui/game");
 const { common } = require("../../services/ui/common");
 const { resetGame } = require("../../services/game");
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
+const { safeReply, handleCommandError } = require("../../services/utils");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -41,11 +35,7 @@ module.exports = {
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/reset error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "reset");
         }
     },
 };

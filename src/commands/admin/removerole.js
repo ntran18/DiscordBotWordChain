@@ -1,29 +1,22 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 const GuildSettings = require("../../models/guildSettings");
-const { adminMessages } = require("../../services/ui/admin");
 const { common } = require("../../services/ui/common");
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
+const { safeReply, handleCommandError } = require("../../services/utils");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("removerole")
-        .setDescription("Remove auto-role when a bot mentions the user")
+        .setDescription("Xóa vai trò tự động khi một bot nhắc đến người dùng")
         .addRoleOption((option) =>
             option
                 .setName("role")
-                .setDescription("Role to remove")
+                .setDescription("Vai trò cần xóa")
                 .setRequired(true),
         )
         .addStringOption((option) =>
             option
                 .setName("botname")
-                .setDescription("Bot/feature name")
+                .setDescription("Tên Bot hoặc tính năng")
                 .setRequired(true),
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
@@ -47,15 +40,11 @@ module.exports = {
             );
 
             return safeReply(interaction, {
-                content: adminMessages.removeRoleSuccess(botName, role.name),
+                content: `🗑️ Đã xóa thành công! Vai trò **${role.name}** sẽ không còn được tự động cấp khi bot **${botName}** nhắc đến người dùng nữa.`,
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/removerole error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "removerole");
         }
     },
 };

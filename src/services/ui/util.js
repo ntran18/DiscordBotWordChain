@@ -4,7 +4,7 @@ const utilMessages = {
     helpTitle: "Danh sách lệnh",
     helpDescription: "Các lệnh khả dụng:",
     requestReceived:
-        "Đã ghi nhận yêu cầu của bạn. Chủ bot sẽ xem xét sớm nhất.",
+        "Đã ghi nhận yêu cầu của bạn. Đội ngũ phát triển sẽ xem xét sớm nhất.",
     defNotFound: "Từ đó không có trong từ điển của bot.",
 };
 

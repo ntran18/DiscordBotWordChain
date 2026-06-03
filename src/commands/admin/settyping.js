@@ -2,17 +2,11 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 const GuildSettings = require("../../models/guildSettings");
 const { adminMessages } = require("../../services/ui/admin");
 const { common } = require("../../services/ui/common");
+const { safeReply, handleCommandError } = require("../../services/utils");
 
 const MIN_MS = 500;
 const MAX_MS = 5000;
 const DEFAULT_MS = 2000;
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -80,11 +74,7 @@ module.exports = {
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/settyping error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "settyping");
         }
     },
 };

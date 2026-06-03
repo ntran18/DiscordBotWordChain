@@ -3,15 +3,13 @@ const path = require("path");
 const { SlashCommandBuilder } = require("discord.js");
 const { utilMessages } = require("../../services/ui/util");
 const { common } = require("../../services/ui/common");
+const {
+    safeReply,
+    sendBotOwnerDm,
+    handleCommandError,
+} = require("../../services/utils");
 
 const requestsDir = path.join(__dirname, "..", "..", "..", "requests");
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
 
 function ensureRequestsDir() {
     if (!fs.existsSync(requestsDir)) {
@@ -21,12 +19,14 @@ function ensureRequestsDir() {
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName("request")
-        .setDescription("Send a request to the bot owner")
+        .setName("support")
+        .setDescription(
+            "Gửi yêu cầu hỗ trợ hoặc phản hồi đến đội ngũ phát triển",
+        )
         .addStringOption((option) =>
             option
                 .setName("message")
-                .setDescription("Your request")
+                .setDescription("Nội dung yêu cầu hoặc phản hồi của bạn")
                 .setRequired(true),
         ),
     adminOnly: false,
@@ -49,31 +49,19 @@ module.exports = {
             const filePath = path.join(requestsDir, `${guildId}.txt`);
             fs.appendFileSync(filePath, `${line}\n`);
 
-            const ownerId = interaction.client.ownerId;
-            if (ownerId) {
-                try {
-                    const owner = await interaction.client.users.fetch(ownerId);
-                    const channelMention = channel?.id
-                        ? `<#${channel.id}>`
-                        : "(không rõ kênh)";
-                    await owner.send(
-                        `Yêu cầu mới từ ${authorTag} tại ${interaction.guild?.name ?? "unknown"} - ${channelMention} (${channel?.name ?? "unknown"}):\n${requestText}`,
-                    );
-                } catch (dmErr) {
-                    console.error("Failed to DM owner:", dmErr);
-                }
-            }
+            const channelMention = channel?.id
+                ? `<#${channel.id}>`
+                : "(không rõ kênh)";
+            const messageToOwner = `Yêu cầu mới từ ${authorTag} tại ${interaction.guild?.name ?? "unknown"} - ${channelMention} (${channel?.name ?? "unknown"}):\n${requestText}`;
+
+            await sendBotOwnerDm(interaction.client, messageToOwner);
 
             return safeReply(interaction, {
                 content: utilMessages.requestReceived,
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/request error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "support");
         }
     },
 };

@@ -49,3 +49,10 @@ ensureRequestsDir();
 // ===================== LOGIN =====================
 console.log("Logging in with token:", process.env.TOKEN?.slice(0, 5) + "...");
 client.login(process.env.TOKEN);
+client.once("ready", async () => {
+    await client.application.fetch();
+    client.ownerId =
+        client.application.owner.ownerId || client.application.owner.id;
+
+    console.log(`Logged in as ${client.user.tag}. Owner ID saved!`);
+});

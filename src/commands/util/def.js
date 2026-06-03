@@ -7,13 +7,7 @@ const {
     buildDefinitionEmbed,
 } = require("../../services/ui/util");
 const { common } = require("../../services/ui/common");
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
+const { safeReply, handleCommandError } = require("../../services/utils");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -49,11 +43,7 @@ module.exports = {
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/def error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "def");
         }
     },
 };

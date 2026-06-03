@@ -1,29 +1,22 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 const GuildSettings = require("../../models/guildSettings");
-const { adminMessages } = require("../../services/ui/admin");
 const { common } = require("../../services/ui/common");
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
+const { safeReply, handleCommandError } = require("../../services/utils");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("addrole")
-        .setDescription("Add auto-role when a bot mentions the user")
+        .setDescription("Thêm vai trò tự động khi một bot nhắc đến người dùng")
         .addRoleOption((option) =>
             option
                 .setName("role")
-                .setDescription("Role to give")
+                .setDescription("Vai trò cần cấp")
                 .setRequired(true),
         )
         .addStringOption((option) =>
             option
                 .setName("botname")
-                .setDescription("Bot/feature name")
+                .setDescription("Tên Bot hoặc tính năng")
                 .setRequired(true),
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
@@ -48,15 +41,11 @@ module.exports = {
             );
 
             return safeReply(interaction, {
-                content: adminMessages.addRoleSuccess(botName, role.name),
+                content: `✅ Đã thiết lập thành công! Vai trò **${role.name}** sẽ được tự động cấp khi bot **${botName}** nhắc đến người dùng.`,
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/addrole error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "addrole");
         }
     },
 };

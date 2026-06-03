@@ -5,13 +5,7 @@ const {
 } = require("discord.js");
 const { utilMessages } = require("../../services/ui/util");
 const { common } = require("../../services/ui/common");
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
+const { safeReply, handleCommandError } = require("../../services/utils");
 
 function canView(command, interaction, ownerId) {
     if (command.ownerOnly) {
@@ -84,11 +78,7 @@ module.exports = {
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/help error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "help");
         }
     },
 };

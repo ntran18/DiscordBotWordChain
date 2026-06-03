@@ -6,13 +6,7 @@ const {
 const GuildSettings = require("../../models/guildSettings");
 const { adminMessages } = require("../../services/ui/admin");
 const { common } = require("../../services/ui/common");
-
-async function safeReply(interaction, payload) {
-    if (interaction.replied || interaction.deferred) {
-        return interaction.followUp(payload);
-    }
-    return interaction.reply(payload);
-}
+const { safeReply, handleCommandError } = require("../../services/utils");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -77,11 +71,7 @@ module.exports = {
                 ephemeral: true,
             });
         } catch (err) {
-            console.error("/setlogchannel error:", err);
-            return safeReply(interaction, {
-                content: common.genericError,
-                ephemeral: true,
-            });
+            return handleCommandError(interaction, err, "setlogchannel");
         }
     },
 };
